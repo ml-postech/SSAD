@@ -1,0 +1,9 @@
+# Minimal package to use MIMII dataset baseline.
+matplotlib
+numpy
+PyYAML
+scikit-learn
+librosa
+audioread
+setuptools
+fast_bss_eval

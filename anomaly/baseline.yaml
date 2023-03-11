@@ -1,0 +1,23 @@
+base_directory : /dev/shm/mimii
+pickle_directory: ./pickle
+model_directory: ./model
+result_directory: ./result
+result_file: slider_id00_02_original_seed3.yaml
+seed: 3
+
+feature:
+  n_mels: 64
+  frames : 5
+  n_fft: 1024
+  hop_length: 512
+  power: 2.0
+
+fit:
+  compile:
+    optimizer : adam
+    loss : mean_squared_error
+  epochs : 1
+  batch_size : 512
+  shuffle : True
+  validation_split : 0.1
+  verbose : 1
