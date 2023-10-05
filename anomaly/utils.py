@@ -281,14 +281,10 @@ def file_to_masked_spec_vector_array(file_name,
     _, spec_label = generate_label(np.expand_dims(y, axis=0), machine)
     spec_label = spec_label.unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy()
     # [309, 320]
-
-    return wav_to_spec_vector_array(sr, y, 
-                         n_mels,
-                         frames,
-                         n_fft,
-                         hop_length,
-                         power,
-                         spec_mask=spec_label)
+    
+    vector_array = wav_to_spec_vector_array(sr, y, n_mels, frames, n_fft, hop_length, power, spec_mask=spec_label)
+    
+    return vector_array, spec_label
 
 
 def wav_to_spec_vector_2d_array(sr, y,

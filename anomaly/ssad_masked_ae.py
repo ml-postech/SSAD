@@ -43,8 +43,8 @@ __versions__ = "1.0.3"
 
 ########################################################################
 # choose machine type and id
-S1 = 'id_04'
-S2 = 'id_06'
+S1 = 'id_00'
+S2 = 'id_02'
 MACHINE = 'valve'
 FILE = 'slider_id04_id06_original.pth'
 xumx_slider_model_path = '/hdd/hdd1/sss/xumx/1013_9_slider0246_fix_control/checkpoints/epoch=198-step=3382.ckpt'
@@ -170,7 +170,8 @@ def train_list_to_mix_sep_masked_spec_vector_array(file_list,
         target_type = os.path.split(os.path.split(os.path.split(file_list[idx])[0])[0])[1]
 
         sr, mixture_y, active_label_sources, active_spec_label_sources = train_file_to_mixture_wav_label(file_list[idx])
-            
+        active_spec_label = active_spec_label_sources[target_source][:1, :, :].cuda().unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0)  # [309, 320]
+           
         active_labels = torch.stack([active_label_sources[src] for src in machine_types])
         _, time = sep_model(torch.Tensor(mixture_y).unsqueeze(0).cuda(), active_labels.unsqueeze(0).cuda())
         # [src, b, ch, time]
@@ -192,10 +193,10 @@ def train_list_to_mix_sep_masked_spec_vector_array(file_list,
 
         if idx == 0:
             dataset = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
-
+            label = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
         dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
-
-    return dataset
+        label[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = active_spec_label.cpu()
+    return dataset, label
 
 
 class AEDataset(torch.utils.data.Dataset):
@@ -209,7 +210,7 @@ class AEDataset(torch.utils.data.Dataset):
         self.file_list = file_list
         self.target_source = target_source
 
-        self.data_vector = train_list_to_mix_sep_masked_spec_vector_array(self.file_list,
+        self.data_vector, self.label = train_list_to_mix_sep_masked_spec_vector_array(self.file_list,
                                             msg="generate train_dataset",
                                             n_mels=param["feature"]["n_mels"],
                                             frames=param["feature"]["frames"],
@@ -221,7 +222,7 @@ class AEDataset(torch.utils.data.Dataset):
         
     
     def __getitem__(self, index):
-        return torch.Tensor(self.data_vector[index, :])
+        return torch.Tensor(self.data_vector[index, :]), torch.Tensor(self.label[index, :])
     
     def __len__(self):
         return self.data_vector.shape[0]
@@ -402,14 +403,15 @@ if __name__ == "__main__":
             model[target_type] = TorchModel(dim_input).cuda()
             #model[target_type](torch.load(model_file))
             optimizer = torch.optim.Adam(model[target_type].parameters(), lr=1.0e-2)
-            loss_fn = nn.MSELoss()
 
             for epoch in range(param["fit"]["epochs"]):
                 losses = []
-                for batch in train_loader:
+                for batch, label in train_loader:
                     batch = batch.cuda()
-                    pred = model[target_type](batch)
-                    loss = loss_fn(pred, batch)
+                    label = label.cuda()
+                    pred = model[target_type](batch)                  
+                                
+                    loss = torch.mean(((pred - batch)*label)**2)  
     
                     optimizer.zero_grad()
                     loss.backward()
