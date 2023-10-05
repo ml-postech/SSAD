@@ -110,7 +110,7 @@ def train_list_to_mixture_spec_vector_array(file_list,
 
         sr, ys = train_file_to_mixture_wav(file_list[idx])
         _, y1 = demux_wav(file_list[idx])
-        _, label_spec = generate_label(y1)
+        _, label_spec = generate_label(numpy.expand_dims(y1, axis=0), MACHINE)
         spec_label = label_spec[:1, :, :].unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy()
        
         vector_array = wav_to_spec_vector_array(sr, ys,
@@ -125,7 +125,7 @@ def train_list_to_mixture_spec_vector_array(file_list,
             dataset = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
             label = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
         dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
-        label[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = label_spec
+        label[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = spec_label
 
     return dataset, label
 
