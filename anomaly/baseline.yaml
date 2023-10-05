@@ -1,4 +1,4 @@
-base_directory : /dev/shm/mimii
+base_directory : /hdd/hdd1/mimii
 pickle_directory: ./pickle
 model_directory: ./model
 result_directory: ./result
@@ -16,7 +16,7 @@ fit:
   compile:
     optimizer : adam
     loss : mean_squared_error
-  epochs : 1
+  epochs : 100
   batch_size : 512
   shuffle : True
   validation_split : 0.1

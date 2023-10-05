@@ -91,6 +91,7 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         source_random = False,
         num_src_in_mix = 2,
         machine_type_dir = "valve",
+        impulse_label = False,
     ):
 
         self.root = Path(root).expanduser()
@@ -112,6 +113,7 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         self.normal = True
         self.task_random = task_random
         self.machine_type_dir = machine_type_dir
+        self.impulse_label = impulse_label
 
         self.tracks = list(self.get_tracks())
         if not self.tracks:
@@ -176,7 +178,7 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
             #[channel, time]
             
             if self.use_control:
-                label = self.generate_label(audio)
+                label = self.generate_label(audio, square_label = self.impulse_label)
                 #[channel, time]
                 active_label_sources[source] = label
 
@@ -204,7 +206,7 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
 
         return audio_mix, audio_sources
 
-    def generate_label(self, audio):
+    def generate_label(self, audio, impulse_label = False):
         # np, [c, t]
         channels = audio.shape[0]
         rms_fig = librosa.feature.rms(y=audio.numpy()) 
@@ -221,6 +223,18 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         label = (rms_trim > min_threshold).type(torch.float) 
         label = torch.Tensor(scipy.ndimage.binary_dilation(label.numpy(), iterations=3)).type(torch.float) 
         #[channel, time]
+        
+        ##############################################################################
+        if impulse_label:
+            time = int(audio.shape[1]//100) # 0.1 sec
+            time = 2
+            label_index_lst = torch.nonzero((label[:,1:] - label[:,:-1]) == 1).tolist()
+            square_labels = torch.zeros_like(label)
+            
+            for idx in label_index_lst:
+                square_labels[idx[0],(idx[1] + 1):(idx[1] + time)] = 1.0
+            label = square_label
+        ##############################################################################
         return label
 
     def __len__(self):

@@ -55,11 +55,12 @@ class MIMIISliderDataset(MIMIIValveDataset):
             task_random=task_random,
             source_random=source_random,
             num_src_in_mix=num_src_in_mix,
-            machine_type_dir="slider"
+            machine_type_dir="slider",
+            impulse_label = False,
         )
 
 
-    def generate_label(self, audio):
+    def generate_label(self, audio, impulse_label = False):
         # np, [1, 313]
         channels = audio.shape[0]
         rms_fig = librosa.feature.rms(y=audio.numpy())  
@@ -74,4 +75,15 @@ class MIMIISliderDataset(MIMIIValveDataset):
         label = (rms_trim > min_threshold).type(torch.float) 
         label = torch.Tensor(scipy.ndimage.binary_dilation(label.numpy(), iterations=3)).type(torch.float) 
         #[channel, time]
+        
+        if impulse_label:
+            time = int(audio.shape[1]//1000) # 0.1 sec
+            time = 2
+            label_index_lst = torch.nonzero((label[:,1:] - label[:,:-1]) == 1).tolist()
+            square_labels = torch.zeros_like(label)
+            
+            for idx in label_index_lst:
+                square_labels[idx[0],(idx[1] + 1):(idx[1] + time)] = 1.0
+    
+            label = square_labels
         return label

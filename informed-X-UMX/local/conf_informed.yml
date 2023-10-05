@@ -39,6 +39,7 @@ data:
   task_random: False
   source_random: True
   num_src_in_mix: 3
+  impulse_label: False
 # Network config
 model:
   pretrained: null

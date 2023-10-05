@@ -50,6 +50,8 @@ def load_datasets(parser, args):
         task_random=args.task_random,
         source_random=args.source_random,
         num_src_in_mix=args.num_src_in_mix,
+        impulse_label = args.impulse_label
+        
         **dataset_kwargs,
     )
     
@@ -68,6 +70,7 @@ def load_datasets(parser, args):
         source_random=args.source_random,
         num_src_in_mix=args.num_src_in_mix,
         **dataset_kwargs,
+        impulse_label = args.impulse_label,
     )
 
     return train_dataset, valid_dataset
