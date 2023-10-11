@@ -313,7 +313,7 @@ if __name__ == "__main__":
             for batch, label in train_loader:
                 batch = batch.cuda()
                 label = label.cuda()
-                pred = model(batch)
+                pred = model(batch * label)
                 loss = torch.mean(((pred - batch)*label)**2) 
 
                 optimizer.zero_grad()
@@ -352,7 +352,7 @@ if __name__ == "__main__":
 
             data = torch.Tensor(data).cuda()
             error = torch.mean(((data - model(data)) ** 2), dim=1)
-            error_mask = torch.mean(((data - model(data)) * active_spec_label) ** 2, dim=1)
+            error_mask = torch.mean(((data * active_spec_label - model(data * active_spec_label)) * active_spec_label) ** 2, dim=1)
             y_pred_mean[num] = torch.mean(error).detach().cpu().numpy()
             y_pred_mask[num] = torch.mean(error_mask).detach().cpu().numpy()
 

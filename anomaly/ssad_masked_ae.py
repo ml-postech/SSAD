@@ -409,7 +409,7 @@ if __name__ == "__main__":
                 for batch, label in train_loader:
                     batch = batch.cuda()
                     label = label.cuda()
-                    pred = model[target_type](batch)                  
+                    pred = model[target_type](batch * label)                  
                                 
                     loss = torch.mean(((pred - batch)*label)**2)  
     
@@ -462,7 +462,7 @@ if __name__ == "__main__":
 
             data = torch.Tensor(data).cuda()
             error = torch.mean(((data - model[machine_type](data)) ** 2), dim=1)
-            error_mask = torch.mean(((data - model[machine_type](data)) * active_spec_label) ** 2, dim=1)
+            error_mask = torch.mean(((data * active_spec_label - model[machine_type](data * active_spec_label)) * active_spec_label) ** 2, dim=1)
 
             sep_sdr, _, _, _ = museval.evaluate(numpy.expand_dims(y_raw[machine_type][0, :ys.shape[0]], axis=(0,2)), 
                                         numpy.expand_dims(ys, axis=(0,2)))
