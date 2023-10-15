@@ -5,7 +5,7 @@ SEEDS=(1 2 3 4 5 6 7 8 9 10)
 MACHINES=("valve" "slider")
 SOURCE1=("id_00" "id_04")
 SOURCE2=("id_02" "id_06")
-GPU=2
+GPU=1
 
 export CUDA_VISIBLE_DEVICES=$GPU
 PYTHON="python"
@@ -18,7 +18,7 @@ for seed in ${SEEDS[@]}; do
          SRC2=${SOURCE2[IDX]}
          sed -i "s@^seed.*@seed: ${seed}@g" baseline.yaml
 
-         RESULT_DIR="/hdd/hdd1/kjc/ssad/result_231012_mix_masked_fix02"
+         RESULT_DIR="/hdd/hdd1/kjc/ssad/result_231016_overlap_mix_masked"
          mkdir -p ${RESULT_DIR}
          sed -i "s@^result_directory.*@result_directory: ${RESULT_DIR}@g" baseline.yaml
 
