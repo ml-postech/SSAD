@@ -30,8 +30,8 @@ from model import TorchModel
 __versions__ = "1.0.3"
 ########################################################################
 
-S1 = 'id_00'
-S2 = 'id_02'
+S1 = 'id_04'
+S2 = 'id_06'
 MACHINE = 'slider'
 machine_types = [S1, S2]
 num_eval_normal = 250
@@ -43,12 +43,14 @@ num_eval_normal = 250
 def train_file_to_mixture_wav(filename):
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
+    src_filename_lst = []
     for machine in machine_types:
         src_filename = filename.replace(machine_type, machine)
+        src_filename_lst.append(src_filename)
         sr, y = demux_wav(src_filename)
         ys = ys + y
 
-    return sr, ys
+    return sr, ys, src_filename_lst
     
 def eval_file_to_mixture_wav(filename):
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
@@ -108,26 +110,44 @@ def train_list_to_mixture_spec_vector_array(file_list,
     # 02 loop of file_to_vectorarray
     for idx in tqdm(range(len(file_list)), desc=msg):
 
-        sr, ys = train_file_to_mixture_wav(file_list[idx])
-        _, y1 = demux_wav(file_list[idx])
-        _, label_spec = generate_label(numpy.expand_dims(y1, axis=0), MACHINE)
-        spec_label = label_spec[:1, :, :].unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy()
-       
-        vector_array = wav_to_spec_vector_array(sr, ys,
+        sr, ys, src_file_lst = train_file_to_mixture_wav(file_list[idx])
+        _, y1 = demux_wav(src_file_lst[0])
+        _, y2 = demux_wav(src_file_lst[1])
+        _, label_spec1 = generate_label(numpy.expand_dims(y1, axis=0), MACHINE)
+        _, label_spec2 = generate_label(numpy.expand_dims(y2, axis=0), MACHINE)
+        spec_label1 = label_spec1[:1, :, :].unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy()
+        spec_label2 = label_spec2[:1, :, :].unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy()
+        
+        vector_array1 = wav_to_spec_vector_array(sr, ys,
                                             n_mels=n_mels,
                                             frames=frames,
                                             n_fft=n_fft,
                                             hop_length=hop_length,
                                             power=power,
-                                            spec_mask=spec_label)
+                                            spec_mask=spec_label1)
+        
+        vector_array2 = wav_to_spec_vector_array(sr, ys,
+                                            n_mels=n_mels,
+                                            frames=frames,
+                                            n_fft=n_fft,
+                                            hop_length=hop_length,
+                                            power=power,
+                                            spec_mask=spec_label2)
 
         if idx == 0:
-            dataset = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
-            label = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
-        dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
-        label[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = spec_label
+            dataset1 = numpy.zeros((vector_array1.shape[0] * len(file_list), dims), float)
+            label1 = numpy.zeros((vector_array1.shape[0] * len(file_list), dims), float)
+            
+            dataset2 = numpy.zeros((vector_array2.shape[0] * len(file_list), dims), float)
+            label2 = numpy.zeros((vector_array2.shape[0] * len(file_list), dims), float)
+              
+        dataset1[vector_array1.shape[0] * idx: vector_array1.shape[0] * (idx + 1), :] = vector_array1
+        label1[vector_array1.shape[0] * idx: vector_array1.shape[0] * (idx + 1), :] = spec_label1
+        
+        dataset2[vector_array2.shape[0] * idx: vector_array2.shape[0] * (idx + 1), :] = vector_array2
+        label2[vector_array2.shape[0] * idx: vector_array2.shape[0] * (idx + 1), :] = spec_label2
 
-    return dataset, label
+    return dataset1, dataset2, label1, label2
 
 
 class AEDatasetMix(torch.utils.data.Dataset):
@@ -139,7 +159,7 @@ class AEDatasetMix(torch.utils.data.Dataset):
         self.file_list = file_list
         self.target_source = target_source
 
-        self.data_vector, self.label = train_list_to_mixture_spec_vector_array(self.file_list,
+        self.data_vector1, self.data_vector2, self.label1, self.label2 = train_list_to_mixture_spec_vector_array(self.file_list,
                                             msg="generate train_dataset",
                                             n_mels=param["feature"]["n_mels"],
                                             frames=param["feature"]["frames"],
@@ -149,10 +169,10 @@ class AEDatasetMix(torch.utils.data.Dataset):
                                             )        
     
     def __getitem__(self, index):
-        return torch.Tensor(self.data_vector[index, :]), torch.Tensor(self.label[index, :])
+        return torch.Tensor(self.data_vector1[index, :]), torch.Tensor(self.data_vector2[index, :]), torch.Tensor(self.label1[index, :]), torch.Tensor(self.label2[index, :])
     
     def __len__(self):
-        return self.data_vector.shape[0]
+        return self.data_vector1.shape[0]
 
 def dataset_generator(target_dir,
                       normal_dir_name="normal",
@@ -216,8 +236,16 @@ def dataset_generator(target_dir,
     # 03 separate train & eval
     train_files = normal_files[num_eval_normal:]
     train_labels = normal_labels[num_eval_normal:]
-    eval_files = numpy.concatenate((normal_files[:num_eval_normal], abnormal_files), axis=0)
-    eval_labels = numpy.concatenate((normal_labels[:num_eval_normal], abnormal_labels), axis=0)
+    
+    ######################################################################################################################## 
+    eval_normal_files = sum([[fan_file.replace(S1, machine_type) for fan_file in normal_files[:num_eval_normal]] for machine_type in machine_types], [])
+    eval_files = numpy.concatenate((eval_normal_files, abnormal_files), axis=0)
+    eval_labels = numpy.concatenate((np.repeat(normal_labels[:num_eval_normal], len(machine_types)), abnormal_labels), axis=0)  ##TODO 
+    ######################################################################################################################## 
+   
+    # eval_files = numpy.concatenate((normal_files[:num_eval_normal], abnormal_files), axis=0)
+    # eval_labels = numpy.concatenate((normal_labels[:num_eval_normal], abnormal_labels), axis=0)
+    
     logger.info("train_file num : {num}".format(num=len(train_files)))
     logger.info("eval_file  num : {num}".format(num=len(eval_files)))
 
@@ -303,19 +331,24 @@ if __name__ == "__main__":
 
         # model training
         print("============== MODEL TRAINING ==============")
-        dim_input = train_dataset.data_vector.shape[1]
+        dim_input = train_dataset.data_vector1.shape[1]
         model = TorchModel(dim_input).cuda()
         optimizer = torch.optim.Adam(model.parameters(), lr=1.0e-3)
         # loss_fn = nn.MSELoss()
  
         for epoch in range(param["fit"]["epochs"]):
             losses = []
-            for batch, label in train_loader:
-                batch = batch.cuda()
-                label = label.cuda()
-                pred = model(batch)
-                loss = torch.mean(((pred - batch)*label)**2) 
-
+            for src1, src2, label1, label2 in train_loader:
+                src1 = src1.cuda()
+                src2 = src2.cuda()
+                label1 = label1.cuda()
+                label2 = label2.cuda()
+                
+                pred1 = model(src1)
+                pred2 = model(src2)
+                
+                loss = torch.mean(((pred1 - src1)*label1)**2) + torch.mean(((pred2 - src2)*label2)**2)              
+                
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -334,7 +367,7 @@ if __name__ == "__main__":
     
         for num, file_name in tqdm(enumerate(eval_files), total=len(eval_files)):
             machine_type = os.path.split(os.path.split(os.path.split(file_name)[0])[0])[1]
-
+        
             sr, ys, y_raw, active_label_sources, active_spec_label_sources = eval_file_to_mixture_wav_label(file_name)
             # overlap_ratio = get_overlap_ratio(active_label_sources[machine_types[0]], active_label_sources[machine_types[1]])
 
@@ -349,18 +382,21 @@ if __name__ == "__main__":
             frames = param["feature"]["frames"]
             # [1, 309, 5] -> [309, 5*n_mels]
             active_spec_label = active_spec_label_sources[machine_type].cuda().unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0)
-
+            
             data = torch.Tensor(data).cuda()
             error = torch.mean(((data - model(data)) ** 2), dim=1)
-            error_mask = torch.mean(((data - model(data)) * active_spec_label) ** 2, dim=1)
+            error_mask = torch.mean(((data*active_spec_label - model(data*active_spec_label)) * active_spec_label) ** 2, dim=1)
+            
             y_pred_mean[num] = torch.mean(error).detach().cpu().numpy()
             y_pred_mask[num] = torch.mean(error_mask).detach().cpu().numpy()
+            
+            eval_types[machine_type].append(num)
 
-            if num < num_eval_normal:
-                for mt in machine_types:
-                    eval_types[mt].append(num)
-            else:
-                eval_types[machine_type].append(num)
+            # if num < num_eval_normal:
+            #     for mt in machine_types:
+            #         eval_types[mt].append(num)
+            # else:
+            #     eval_types[machine_type].append(num)
 
         mean_scores = []
         mask_scores = []

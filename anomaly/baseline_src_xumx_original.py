@@ -77,27 +77,30 @@ def train_file_to_mixture_wav_label(filename):
 
 
 def eval_file_to_mixture_wav_label(filename):
-    machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
+    target_machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
     gt_wav = {}
     active_label_sources = {}
     active_spec_label_sources = {}
-    for normal_type in machine_types:
-        if normal_type == machine_type:
+    for mt in machine_types:
+        if mt == target_machine_type:
             src_filename = filename
         else:
-            src_filename = filename.replace(machine_type, normal_type).replace('abnormal', 'normal')
+            src_filename = filename.replace(target_machine_type, mt).replace('abnormal', 'normal')
+            # target mt -> mt, if abnormal이면 normal if normal이면 normal
+            # 즉 섞이는 게 무조건 normal
         sr, y = file_to_wav_stereo(src_filename)
         
         # if normal_type != machine_type:
         #     delay = random.randint(0, 16000)
         #     audio_len = y.shape[1]  
         #     y = np.concatenate([np.zeros_like(y)[:, :delay], y[:, :audio_len - delay]], axis=1)
+        
         ys = ys + y
         label, spec_label = generate_label(y, MACHINE)
-        active_label_sources[normal_type] = label
-        active_spec_label_sources[normal_type] = spec_label
-        gt_wav[normal_type] = y
+        active_label_sources[mt] = label
+        active_spec_label_sources[mt] = spec_label
+        gt_wav[mt] = y
     
     return sr, ys, gt_wav, active_label_sources, active_spec_label_sources
 

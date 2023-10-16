@@ -233,7 +233,7 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
             
             for idx in label_index_lst:
                 square_labels[idx[0],(idx[1] + 1):(idx[1] + time)] = 1.0
-            label = square_label
+            label = square_labels
         ##############################################################################
         return label
 
