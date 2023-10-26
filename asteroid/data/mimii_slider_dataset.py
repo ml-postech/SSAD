@@ -62,18 +62,19 @@ class MIMIISliderDataset(MIMIIValveDataset):
 
     def generate_label(self, audio, impulse_label = False):
         # np, [1, 313]
+        time = audio.shape[-1]
         channels = audio.shape[0]
         rms_fig = librosa.feature.rms(y=audio.numpy())  
         #[c, 1, 313]
         rms_tensor = torch.tensor(rms_fig).permute(0, 2, 1)
         # [channel, time, 1]
-        rms_trim = rms_tensor.expand(-1, -1, 512).reshape(channels, -1)[:, :160000]
+        rms_trim = rms_tensor.expand(-1, -1, 512).reshape(channels, -1)[:, :time]
         # [channel, time]
 
         min_threshold = (torch.max(rms_trim) + torch.min(rms_trim))/2
 
         label = (rms_trim > min_threshold).type(torch.float) 
-        label = torch.Tensor(scipy.ndimage.binary_dilation(label.numpy(), iterations=3)).type(torch.float) 
+        # label = torch.Tensor(scipy.ndimage.binary_dilation(label.numpy(), iterations=3)).type(torch.float) 
         #[channel, time]
         
         if impulse_label:

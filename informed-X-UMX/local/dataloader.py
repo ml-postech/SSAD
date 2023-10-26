@@ -50,9 +50,9 @@ def load_datasets(parser, args):
         task_random=args.task_random,
         source_random=args.source_random,
         num_src_in_mix=args.num_src_in_mix,
-        # impulse_label = args.impulse_label,
         **dataset_kwargs,
     )
+    
     
     train_dataset = filtering_out_valid(train_dataset, validation_tracks)
     
@@ -68,7 +68,6 @@ def load_datasets(parser, args):
         task_random=args.task_random,
         source_random=args.source_random,
         num_src_in_mix=args.num_src_in_mix,
-        # impulse_label = args.impulse_label,
         **dataset_kwargs,
 
     )

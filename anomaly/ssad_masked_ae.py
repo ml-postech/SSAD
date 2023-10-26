@@ -43,17 +43,22 @@ __versions__ = "1.0.3"
 
 ########################################################################
 # choose machine type and id
-S1 = 'id_00'
-S2 = 'id_02'
-MACHINE = 'valve'
-FILE = 'slider_id04_id06_original.pth'
-xumx_slider_model_path = '/hdd/hdd1/sss/xumx/1013_9_slider0246_fix_control/checkpoints/epoch=198-step=3382.ckpt'
-xumx_valve_model_path = '/hdd/hdd1/sss/xumx/1013_8_valve0248_fix_control/checkpoints/epoch=214-step=4944.ckpt'
+S1 = 'id_04'
+S2 = 'id_06'
+MACHINE = 'slider'
+FILE = 'valve_id00_id02_original.pth'
+# xumx_slider_model_path = '/hdd/hdd1/sss/xumx/1013_9_slider0246_fix_control/checkpoints/epoch=198-step=3382.ckpt'
+# xumx_valve_model_path = '/hdd/hdd1/sss/xumx/1013_8_valve0248_fix_control/checkpoints/epoch=214-step=4944.ckpt'
+
+xumx_slider_model_path = '/hdd/hdd1/sss/xumx/overlap_slider_id0246_src2/checkpoints/epoch=344-step=69344.ckpt'
+xumx_valve_model_path = '/hdd/hdd1/sss/xumx/overlap_valve_id0246_src2/checkpoints/epoch=309-step=71609.ckpt'
+
 xumx_model_path = xumx_valve_model_path if MACHINE == 'valve' else xumx_slider_model_path
 ae_path_base = '/hdd/hdd1/kjc/xumx/ae/cont'
 
 machine_types = [S1, S2]
 num_eval_normal = 250
+force_high_overlap = True
 
 ########################################################################
 
@@ -63,29 +68,68 @@ num_eval_normal = 250
 ########################################################################
 
 
+def shift(data, amount_to_right):
+    amount_to_right = int(amount_to_right)
+    if amount_to_right > 0:
+        new_data = np.concatenate([np.zeros_like(data[:, :amount_to_right]), data[:, :-amount_to_right]], axis=1)
+    elif amount_to_right < 0:
+        new_data = np.concatenate([data[:, amount_to_right:], np.zeros_like(data[:, :amount_to_right])], axis=1)
+    else:
+        new_data = data
+    return new_data
+
 
 def train_file_to_mixture_wav_label(filename):
+    shift_amount = [0.1, 0.3, 0.5]
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
+    mix_label = None
+    
     active_label_sources = {}
     active_spec_label_sources = {}
+    
     for machine in machine_types:
         src_filename = filename.replace(machine_type, machine)
         sr, y = file_to_wav_stereo(src_filename)
         label, spec_label = generate_label(y, MACHINE)
-        active_label_sources[machine] = label
-        active_spec_label_sources[machine] = spec_label
-        ys = ys + y
+        
+        if force_high_overlap:
+            if mix_label == None:
+                mix_label = label
+                active_label_sources[machine] = label
+                active_spec_label_sources[machine] = spec_label
+            else:
+                y_candidates = [shift(y, -shift_amount[2]* sr), 
+                                shift(y, -shift_amount[1] * sr), 
+                                shift(y, -shift_amount[0] * sr), 
+                                y, 
+                                shift(y, shift_amount[0] * sr),
+                                shift(y, shift_amount[1] * sr),
+                                shift(y, shift_amount[2] * sr),
+                                ]
+                label_candidates = list(map(lambda x: generate_label(x, MACHINE)[0], y_candidates))
+                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
+                
+                target_idx = np.argmax(overlap_candidates)
+                y = y_candidates[target_idx]
+                label, spec_label = generate_label(y, MACHINE)
+                mix_label = np.logical_or(mix_label, label)              
+                active_label_sources[machine] = label
+                active_spec_label_sources[machine] = spec_label
+                ys = ys + y
 
     return sr, ys, active_label_sources, active_spec_label_sources
 
 
 def eval_file_to_mixture_wav_label(filename):
+    shift_amount = [0.1, 0.3, 0.5]
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
     gt_wav = {}
+    mix_label = None
     active_label_sources = {}
     active_spec_label_sources = {}
+    
     for normal_type in machine_types:
         if normal_type == machine_type:
             src_filename = filename
@@ -93,15 +137,39 @@ def eval_file_to_mixture_wav_label(filename):
             src_filename = filename.replace(machine_type, normal_type).replace('abnormal', 'normal')
         sr, y = file_to_wav_stereo(src_filename)
         
-        # if normal_type != machine_type:
-        #     delay = random.randint(0, 16000)
-        #     audio_len = y.shape[1]  
-        #     y = np.concatenate([np.zeros_like(y)[:, :delay], y[:, :audio_len - delay]], axis=1)
-        ys = ys + y
-        label, spec_label = generate_label(y, MACHINE)
-        active_label_sources[normal_type] = label
-        active_spec_label_sources[normal_type] = spec_label
-        gt_wav[normal_type] = y
+        
+        
+        if force_high_overlap:
+            if mix_label == None:
+                label, spec_label = generate_label(y, MACHINE)
+                mix_label = label
+                active_label_sources[normal_type] = label
+                active_spec_label_sources[normal_type] = spec_label
+                gt_wav[normal_type] = y
+                ys = y
+
+            else:
+                y_candidates = [shift(y, -shift_amount[2]* sr), 
+                                shift(y, -shift_amount[1] * sr), 
+                                shift(y, -shift_amount[0] * sr), 
+                                y, 
+                                shift(y, shift_amount[0] * sr),
+                                shift(y, shift_amount[1] * sr),
+                                shift(y, shift_amount[2] * sr),
+                                ]
+                label_candidates = list(map(lambda x: generate_label(x, MACHINE)[0], y_candidates))
+                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
+                
+                target_idx = np.argmax(overlap_candidates)
+                y = y_candidates[target_idx]
+                label, spec_label = generate_label(y, MACHINE)
+                mix_label = np.logical_or(mix_label, label)
+               
+                active_label_sources[normal_type] = label
+                active_spec_label_sources[normal_type] = spec_label
+                gt_wav[normal_type] = y
+                
+                ys = ys + y
     
     return sr, ys, gt_wav, active_label_sources, active_spec_label_sources
 
@@ -401,7 +469,6 @@ if __name__ == "__main__":
             print("============== MODEL TRAINING ==============")
             dim_input = train_dataset.data_vector.shape[1]
             model[target_type] = TorchModel(dim_input).cuda()
-            #model[target_type](torch.load(model_file))
             optimizer = torch.optim.Adam(model[target_type].parameters(), lr=1.0e-2)
 
             for epoch in range(param["fit"]["epochs"]):
@@ -409,7 +476,7 @@ if __name__ == "__main__":
                 for batch, label in train_loader:
                     batch = batch.cuda()
                     label = label.cuda()
-                    pred = model[target_type](batch)                  
+                    pred = model[target_type](batch * label)                  
                                 
                     loss = torch.mean(((pred - batch)*label)**2)  
     
@@ -431,13 +498,14 @@ if __name__ == "__main__":
         sdr_pred_abnormal = {mt: [] for mt in machine_types}
 
         eval_types = {mt: [] for mt in machine_types}
+        overlap_ratios = []
                     
         for num, file_name in tqdm(enumerate(eval_files), total=len(eval_files)):
             machine_type = os.path.split(os.path.split(os.path.split(file_name)[0])[0])[1]
             target_idx = machine_types.index(machine_type)  
             
             sr, mixture_y, y_raw, active_label_sources, active_spec_label_sources = eval_file_to_mixture_wav_label(file_name)
-            # overlap_ratio = get_overlap_ratio(active_label_sources[machine_types[0]], active_label_sources[machine_types[1]])
+            overlap_ratios.append(get_overlap_ratio(active_label_sources[machine_types[0]], active_label_sources[machine_types[1]]))
             
             active_labels = torch.stack([active_label_sources[src] for src in machine_types])
             _, time = sep_model(torch.Tensor(mixture_y).unsqueeze(0).cuda(), active_labels.unsqueeze(0).cuda())
@@ -462,10 +530,11 @@ if __name__ == "__main__":
 
             data = torch.Tensor(data).cuda()
             error = torch.mean(((data - model[machine_type](data)) ** 2), dim=1)
-            error_mask = torch.mean(((data - model[machine_type](data)) * active_spec_label) ** 2, dim=1)
+            error_mask = torch.mean(((data * active_spec_label - model[machine_type](data * active_spec_label)) * active_spec_label) ** 2, dim=1)
 
             sep_sdr, _, _, _ = museval.evaluate(numpy.expand_dims(y_raw[machine_type][0, :ys.shape[0]], axis=(0,2)), 
                                         numpy.expand_dims(ys, axis=(0,2)))
+            print(y_raw[machine_type][0, :ys.shape[0]])
 
             y_pred_mean[num] = torch.mean(error).detach().cpu().numpy()
             y_pred_mask[num] = (torch.mean(error_mask) / active_ratio).detach().cpu().numpy()
@@ -499,8 +568,11 @@ if __name__ == "__main__":
         mask_score = sum(mask_scores) / len(mask_scores)
         logger.info("AUC_mean : {}".format(mean_score))
         logger.info("AUC_mask : {}".format(mask_score))
+        overall_overlap = sum(overlap_ratios) / len(overlap_ratios)
+        logger.info("overlap_ratio : {}".format(overall_overlap))
         evaluation_result["AUC_mean"] = float(mean_score)
         evaluation_result["AUC_mask"] = float(mask_score)
+        evaluation_result["overlap_ratio"] = float(overall_overlap)
         results[evaluation_result_key] = evaluation_result
         print("===========================")
 

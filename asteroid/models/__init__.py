@@ -2,7 +2,6 @@
 from .base_models import BaseModel
 from .x_umx import XUMX
 from .x_umx_control import XUMXControl
-from .x_umx_control_mfcc import XUMXControlMFCC
 
 # Sharing-related
 from .publisher import save_publishable, upload_publishable
@@ -10,7 +9,6 @@ from .publisher import save_publishable, upload_publishable
 __all__ = [
     "XUMX",
     "XUMXControl",
-    "XUMXControlMFCC",
     "save_publishable",
     "upload_publishable",
 ]

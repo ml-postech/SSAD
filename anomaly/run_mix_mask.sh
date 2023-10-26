@@ -5,11 +5,11 @@ SEEDS=(1 2 3 4 5 6 7 8 9 10)
 MACHINES=("valve" "slider")
 SOURCE1=("id_00" "id_04")
 SOURCE2=("id_02" "id_06")
-GPU=2
+GPU=1
 
 export CUDA_VISIBLE_DEVICES=$GPU
 PYTHON="python"
-PYTHON_FILE="baseline_src_xumx_original.py"
+PYTHON_FILE="baseline_mix_masked.py"
 
 for seed in ${SEEDS[@]}; do
    for MACHINE in ${MACHINES[@]}; do
@@ -18,11 +18,11 @@ for seed in ${SEEDS[@]}; do
          SRC2=${SOURCE2[IDX]}
          sed -i "s@^seed.*@seed: ${seed}@g" baseline.yaml
 
-         RESULT_DIR="/hdd/hdd1/kjc/ssad/result_231016_overlap_sep_no_mask"
+         RESULT_DIR="/hdd/hdd1/kjc/ssad/result_231016_overlap_mix_masked"
          mkdir -p ${RESULT_DIR}
          sed -i "s@^result_directory.*@result_directory: ${RESULT_DIR}@g" baseline.yaml
 
-         RESULT_NAME="ssad_${MACHINE}_seed${seed}_${SRC1}_${SRC2}.yaml"
+         RESULT_NAME="mixture_baseline_${MACHINE}_seed${seed}_${SRC1}_${SRC2}.yaml"
          sed -i "s@^result_file.*@result_file: ${RESULT_NAME}@g" baseline.yaml
 
          sed -i "s@^MACHINE =.*@MACHINE = '${MACHINE}'@g" ${PYTHON_FILE}

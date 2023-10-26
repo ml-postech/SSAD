@@ -35,20 +35,59 @@ S2 = 'id_06'
 MACHINE = 'slider'
 machine_types = [S1, S2]
 num_eval_normal = 250
+force_high_overlap = True
 
 ########################################################################
 # feature extractor
 ########################################################################
 
+def shift(data, amount_to_right):
+    amount_to_right = int(amount_to_right)
+    if amount_to_right > 0:
+        new_data = np.concatenate([np.zeros_like(data[:amount_to_right]), data[:-amount_to_right]])
+    elif amount_to_right < 0:
+        new_data = np.concatenate([data[amount_to_right:], np.zeros_like(data[:amount_to_right])])
+    else:
+        new_data = data
+    return new_data
+
 def train_file_to_mixture_wav(filename):
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
     src_filename_lst = []
+    mix_label = None
+    labels = []
     for machine in machine_types:
         src_filename = filename.replace(machine_type, machine)
         src_filename_lst.append(src_filename)
         sr, y = demux_wav(src_filename)
-        ys = ys + y
+        label, spec_label = generate_label(np.expand_dims(y, axis=0), MACHINE)
+        
+        if force_high_overlap:
+            if mix_label == None:
+                mix_label = label
+                labels.append(label)
+                ys = ys + y
+            else:
+                y_candidates = [shift(y, -2 * sr), 
+                                shift(y, -1 * sr), 
+                                shift(y, -0.5 * sr), 
+                                y, 
+                                shift(y, 0.5 * sr),
+                                shift(y, 1 * sr),
+                                shift(y, 2 * sr),
+                                ]
+                label_candidates = list(map(lambda x: generate_label(np.expand_dims(x, axis=0), MACHINE)[0], 
+                                       y_candidates))
+                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), 
+                                       label_candidates))
+                target_idx = np.argmax(overlap_candidates)
+                label = label_candidates[target_idx]
+                mix_label = np.logical_or(mix_label, label)
+                labels.append(label)
+                ys = ys + y_candidates[target_idx]
+        else:
+            ys = ys + y
 
     return sr, ys, src_filename_lst
     
@@ -68,6 +107,8 @@ def eval_file_to_mixture_wav(filename):
 def eval_file_to_mixture_wav_label(filename):
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
+    mix_label = None
+    labels = []
     gt_wav = {}
     active_label_sources = {}
     active_spec_label_sources = {}
@@ -77,6 +118,29 @@ def eval_file_to_mixture_wav_label(filename):
         else:
             src_filename = filename.replace(machine_type, normal_type).replace('abnormal', 'normal')
         sr, y = demux_wav(src_filename)
+        if force_high_overlap:
+            if mix_label == None:
+                label, spec_label = generate_label(np.expand_dims(y, axis=0), MACHINE)
+                mix_label = label
+                labels.append(label)
+            else:
+                y_candidates = [shift(y, -2 * sr), 
+                                shift(y, -1 * sr), 
+                                shift(y, -0.5 * sr), 
+                                y, 
+                                shift(y, 0.5 * sr),
+                                shift(y, 1 * sr),
+                                shift(y, 2 * sr),
+                                ]
+                label_candidates = list(map(lambda x: generate_label(np.expand_dims(x, axis=0), MACHINE)[0], 
+                                       y_candidates))
+                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), 
+                                       label_candidates))
+                target_idx = np.argmax(overlap_candidates)
+                label = label_candidates[target_idx]
+                mix_label = np.logical_or(mix_label, label)
+                labels.append(label)
+                y = y_candidates[target_idx]
         ys = ys + y
         label, spec_label = generate_label(np.expand_dims(y, axis=0), MACHINE)
         active_label_sources[normal_type] = label
@@ -364,12 +428,13 @@ if __name__ == "__main__":
         y_true = numpy.array(eval_labels)
 
         eval_types = {mt: [] for mt in machine_types}
+        overlap_ratios = []
     
         for num, file_name in tqdm(enumerate(eval_files), total=len(eval_files)):
             machine_type = os.path.split(os.path.split(os.path.split(file_name)[0])[0])[1]
         
             sr, ys, y_raw, active_label_sources, active_spec_label_sources = eval_file_to_mixture_wav_label(file_name)
-            # overlap_ratio = get_overlap_ratio(active_label_sources[machine_types[0]], active_label_sources[machine_types[1]])
+            overlap_ratios.append(get_overlap_ratio(active_label_sources[machine_types[0]], active_label_sources[machine_types[1]]))
 
             data = wav_to_spec_vector_array(sr, ys,
                                         n_mels=param["feature"]["n_mels"],
@@ -413,8 +478,11 @@ if __name__ == "__main__":
         mask_score = sum(mask_scores) / len(mask_scores)
         logger.info("AUC_mean : {}".format(mean_score))
         logger.info("AUC_mask : {}".format(mask_score))
+        overall_overlap = sum(overlap_ratios) / len(overlap_ratios)
+        logger.info("overlap_ratio : {}".format(overall_overlap))
         evaluation_result["AUC_mean"] = float(mean_score)
         evaluation_result["AUC_mask"] = float(mask_score)
+        evaluation_result["overlap_ratio"] = float(overall_overlap)
         results[evaluation_result_key] = evaluation_result
         print("===========================")
 

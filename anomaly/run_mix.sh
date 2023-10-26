@@ -5,7 +5,7 @@ SEEDS=(1 2 3 4 5 6 7 8 9 10)
 MACHINES=("valve" "slider")
 SOURCE1=("id_00" "id_04")
 SOURCE2=("id_02" "id_06")
-GPU=2
+GPU=0
 
 export CUDA_VISIBLE_DEVICES=$GPU
 PYTHON="python"
