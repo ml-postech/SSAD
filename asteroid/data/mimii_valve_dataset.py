@@ -348,9 +348,9 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
     def shift(self, data, amount_to_right):
         amount_to_right = int(amount_to_right)
         if amount_to_right > 0:
-            new_data = np.concatenate([np.zeros_like(data[:amount_to_right]), data[:-amount_to_right]])
+            new_data = np.concatenate([np.zeros_like(data[:, :amount_to_right]), data[:, :-amount_to_right]], axis = 1)
         elif amount_to_right < 0:
-            new_data = np.concatenate([data[amount_to_right:], np.zeros_like(data[:amount_to_right])])
+            new_data = np.concatenate([data[:, amount_to_right:], np.zeros_like(data[:, :amount_to_right])], axis = 1)
         else:
             new_data = data
         

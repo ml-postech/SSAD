@@ -43,9 +43,9 @@ __versions__ = "1.0.3"
 
 ########################################################################
 # choose machine type and id
-S1 = 'id_04'
-S2 = 'id_06'
-MACHINE = 'slider'
+S1 = 'id_02'
+S2 = 'id_00'
+MACHINE = 'valve'
 FILE = 'valve_id00_id02_original.pth'
 # xumx_slider_model_path = '/hdd/hdd1/sss/xumx/1013_9_slider0246_fix_control/checkpoints/epoch=198-step=3382.ckpt'
 # xumx_valve_model_path = '/hdd/hdd1/sss/xumx/1013_8_valve0248_fix_control/checkpoints/epoch=214-step=4944.ckpt'
@@ -71,6 +71,7 @@ force_high_overlap = True
 def shift(data, amount_to_right):
     amount_to_right = int(amount_to_right)
     if amount_to_right > 0:
+        print(data.shape)
         new_data = np.concatenate([np.zeros_like(data[:, :amount_to_right]), data[:, :-amount_to_right]], axis=1)
     elif amount_to_right < 0:
         new_data = np.concatenate([data[:, amount_to_right:], np.zeros_like(data[:, :amount_to_right])], axis=1)
@@ -135,12 +136,12 @@ def eval_file_to_mixture_wav_label(filename):
             src_filename = filename
         else:
             src_filename = filename.replace(machine_type, normal_type).replace('abnormal', 'normal')
+            
         sr, y = file_to_wav_stereo(src_filename)
-        
-        
-        
+    
         if force_high_overlap:
             if mix_label == None:
+                print("FIRST:", normal_type)
                 label, spec_label = generate_label(y, MACHINE)
                 mix_label = label
                 active_label_sources[normal_type] = label
@@ -149,6 +150,7 @@ def eval_file_to_mixture_wav_label(filename):
                 ys = y
 
             else:
+                print("SECOND:", normal_type)
                 y_candidates = [shift(y, -shift_amount[2]* sr), 
                                 shift(y, -shift_amount[1] * sr), 
                                 shift(y, -shift_amount[0] * sr), 
@@ -161,7 +163,7 @@ def eval_file_to_mixture_wav_label(filename):
                 overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
                 
                 target_idx = np.argmax(overlap_candidates)
-                y = y_candidates[target_idx]
+                y = y_candidates[target_idx]  # 2 번째 input의 overlap 높은 audio
                 label, spec_label = generate_label(y, MACHINE)
                 mix_label = np.logical_or(mix_label, label)
                
@@ -331,7 +333,8 @@ def dataset_generator(target_dir,
     normal_files = sorted(glob.glob(
         os.path.abspath("{dir}/{normal_dir_name}/*.{ext}".format(dir=target_dir,
                                                                  normal_dir_name=normal_dir_name,
-                                                                ext=ext))))
+                                                                ext=ext))))  # 첫 번째 source의 normal 파일
+    
     normal_len = [len(glob.glob(
         os.path.abspath("{dir}/{normal_dir_name}/*.{ext}".format(dir=target_dir.replace(S1, mt),
                                                                  normal_dir_name=normal_dir_name,
@@ -359,8 +362,8 @@ def dataset_generator(target_dir,
     # 03 separate train & eval
     train_files = normal_files[num_eval_normal:]
     train_labels = normal_labels[num_eval_normal:]
-    eval_normal_files = sum([[fan_file.replace(S1, machine_type) for fan_file in normal_files[:num_eval_normal]] for machine_type in machine_types], [])
-    eval_files = numpy.concatenate((eval_normal_files, abnormal_files), axis=0)
+    eval_normal_files = sum([[fan_file.replace(S1, machine_type) for fan_file in normal_files[:num_eval_normal]] for machine_type in machine_types], []) # [id_00_normal, ..., id_02_normal, ...]
+    eval_files = numpy.concatenate((eval_normal_files, abnormal_files), axis=0) # [id_00_normal, ..., id_02_normal, ..., id_00_abnormal, ..., id_02_abnormal, ...]
     eval_labels = numpy.concatenate((np.repeat(normal_labels[:num_eval_normal], len(machine_types)), abnormal_labels), axis=0)  
     logger.info("train_file num : {num}".format(num=len(train_files)))
     logger.info("eval_file  num : {num}".format(num=len(eval_files)))
@@ -534,7 +537,6 @@ if __name__ == "__main__":
 
             sep_sdr, _, _, _ = museval.evaluate(numpy.expand_dims(y_raw[machine_type][0, :ys.shape[0]], axis=(0,2)), 
                                         numpy.expand_dims(ys, axis=(0,2)))
-            print(y_raw[machine_type][0, :ys.shape[0]])
 
             y_pred_mean[num] = torch.mean(error).detach().cpu().numpy()
             y_pred_mask[num] = (torch.mean(error_mask) / active_ratio).detach().cpu().numpy()
