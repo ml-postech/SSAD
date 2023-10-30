@@ -36,6 +36,10 @@ class MIMIISliderDataset(MIMIIValveDataset):
         task_random=False,
         source_random=False,
         num_src_in_mix=2,
+        train_ckpt = None,
+        val_ckpt = None,
+        mode = 'train',
+        impulse_label= False,
     ):
 
         super().__init__(root, 
@@ -56,6 +60,9 @@ class MIMIISliderDataset(MIMIIValveDataset):
             source_random=source_random,
             num_src_in_mix=num_src_in_mix,
             machine_type_dir="slider",
+            train_ckpt = None,
+            val_ckpt = None,
+            mode = 'train',
             impulse_label = False,
         )
 

@@ -35,7 +35,7 @@ def load_datasets(parser, args):
     else:
         raise Exception("unexpected machine type")
     
-   
+    
     train_dataset = Dataset(
         split=args.split,
         sources=args.sources,
@@ -50,6 +50,9 @@ def load_datasets(parser, args):
         task_random=args.task_random,
         source_random=args.source_random,
         num_src_in_mix=args.num_src_in_mix,
+        train_ckpt = args.train_ckpt,
+        val_ckpt = args.val_ckpt,
+        mode = 'train',
         **dataset_kwargs,
     )
     
@@ -68,6 +71,9 @@ def load_datasets(parser, args):
         task_random=args.task_random,
         source_random=args.source_random,
         num_src_in_mix=args.num_src_in_mix,
+        train_ckpt = args.train_ckpt,
+        val_ckpt = args.val_ckpt,
+        mode = 'val',
         **dataset_kwargs,
 
     )

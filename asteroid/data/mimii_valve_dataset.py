@@ -10,6 +10,8 @@ import librosa
 from itertools import product
 import numpy as np
 import scipy
+import pickle
+import os
 
 class MIMIIValveDataset(torch.utils.data.Dataset):
     """MUSDB18 music separation dataset
@@ -91,7 +93,10 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         source_random = False,
         num_src_in_mix = 2,
         machine_type_dir = "valve",
-        impulse_label = False,
+        train_ckpt = None,
+        val_ckpt = None,
+        mode = 'train',
+        impulse_label= False
     ):
 
         self.root = Path(root).expanduser()
@@ -113,19 +118,33 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         self.normal = True
         self.task_random = task_random
         self.machine_type_dir = machine_type_dir
-        self.impulse_label = False
-
         self.tracks = list(self.get_tracks())
         if not self.tracks:
             raise RuntimeError("No tracks found.")
-
-        self.data = {index: [] for index in range(len(self.tracks) * self.samples_per_track)}
+        self.impulse_label = impulse_label
+        
+        self.train_ckpt = train_ckpt
+        self.val_ckpt = val_ckpt
+        self.index_lst = list(range(len(self.tracks) * self.samples_per_track))
+        self.mode = mode
+        self.ckpt = self.train_ckpt if self.mode == 'train' else self.val_ckpt
+            
+        if self.ckpt and os.path.exists(self.ckpt):
+            with open(self.ckpt, 'rb') as f:
+                self.data = pickle.load(f)
+                print("Checkpoint loaded successfully.")
+        else:
+            self.data = {index: [] for index in range(len(self.tracks) * self.samples_per_track)}
+            print("Checkpoint file not found. Initializing with default data.")
+            
         self.shift_amount = [0.1, 0.3, 0.5]
         self.overlap_ratio_lst = []
         
     def __getitem__(self, index):
         
         if len(self.data[index]) == 0:
+            
+            self.index_lst.remove(index)
     
             audio_sources = {}
             active_label_sources = {}
@@ -248,6 +267,10 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
                 now_overlapped = torch.where(now_overlapped>1, torch.tensor(1), torch.tensor(0))
                 overlap_ratio = now_overlapped.sum()/mix_label.sum()
                 self.overlap_ratio_lst.append(overlap_ratio)
+                
+                if len(self.index_lst) == 0:
+                    self.save_dictionary("{machine_type}_{mode}_control_overlap.pkl".format(machine_type = self.machine_type_dir, mode = self.mode))
+                
                 return audio_mix, audio_sources, active_labels
             
             self.data[index] = torch.zeros(1 + self.num_src_in_mix, audio_sources.shape[1], audio_sources.shape[2])
@@ -261,13 +284,16 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
                 audio_mix = audio_mix.squeeze(0)
                 audio_sources = self.data[index][1:self.num_src_in_mix+1,:, :]
                 active_labels = self.data[index][self.num_src_in_mix+1:2*self.num_src_in_mix+1,:, :]
-                print(sum(self.overlap_ratio_lst)/len(self.overlap_ratio_lst))
+    
                 return audio_mix, audio_sources, active_labels
             else:
                 audio_mix = self.data[index][0:1,:, :]
                 audio_mix = audio_mix.squeeze(0)
                 audio_sources = self.data[index][1:self.num_src_in_mix+1,:, :]         
             return audio_mix, audio_sources
+        
+                    
+            
         
 
     def __len__(self):
@@ -355,3 +381,8 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
             new_data = data
         
         return torch.tensor(new_data)
+    
+    def save_dictionary(self, path):
+        with open(path, 'wb') as f:
+            pickle.dump(self.data, f)
+            

@@ -30,9 +30,9 @@ from model import TorchModel
 __versions__ = "1.0.3"
 ########################################################################
 
-S1 = 'id_04'
-S2 = 'id_06'
-MACHINE = 'slider'
+S1 = 'id_00'
+S2 = 'id_02'
+MACHINE = 'valve'
 machine_types = [S1, S2]
 num_eval_normal = 250
 force_high_overlap = True
@@ -52,11 +52,11 @@ def shift(data, amount_to_right):
     return new_data
 
 def train_file_to_mixture_wav(filename):
+    shift_amount = [0.1, 0.3, 0.5]
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
     src_filename_lst = []
     mix_label = None
-    labels = []
     for machine in machine_types:
         src_filename = filename.replace(machine_type, machine)
         src_filename_lst.append(src_filename)
@@ -66,25 +66,22 @@ def train_file_to_mixture_wav(filename):
         if force_high_overlap:
             if mix_label == None:
                 mix_label = label
-                labels.append(label)
                 ys = ys + y
             else:
-                y_candidates = [shift(y, -2 * sr), 
-                                shift(y, -1 * sr), 
-                                shift(y, -0.5 * sr), 
+                y_candidates = [shift(y, -shift_amount[2]* sr), 
+                                shift(y, -shift_amount[1] * sr), 
+                                shift(y, -shift_amount[0] * sr), 
                                 y, 
-                                shift(y, 0.5 * sr),
-                                shift(y, 1 * sr),
-                                shift(y, 2 * sr),
+                                shift(y, shift_amount[0] * sr),
+                                shift(y, shift_amount[1] * sr),
+                                shift(y, shift_amount[2] * sr),
                                 ]
-                label_candidates = list(map(lambda x: generate_label(np.expand_dims(x, axis=0), MACHINE)[0], 
-                                       y_candidates))
-                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), 
-                                       label_candidates))
+                label_candidates = list(map(lambda x: generate_label(np.expand_dims(x, axis=0), MACHINE)[0], y_candidates))
+                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
+                
                 target_idx = np.argmax(overlap_candidates)
                 label = label_candidates[target_idx]
                 mix_label = np.logical_or(mix_label, label)
-                labels.append(label)
                 ys = ys + y_candidates[target_idx]
         else:
             ys = ys + y
@@ -105,10 +102,10 @@ def eval_file_to_mixture_wav(filename):
     return sr, ys
 
 def eval_file_to_mixture_wav_label(filename):
+    shift_amount = [0.1, 0.3, 0.5]
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
     mix_label = None
-    labels = []
     gt_wav = {}
     active_label_sources = {}
     active_spec_label_sources = {}
@@ -122,15 +119,14 @@ def eval_file_to_mixture_wav_label(filename):
             if mix_label == None:
                 label, spec_label = generate_label(np.expand_dims(y, axis=0), MACHINE)
                 mix_label = label
-                labels.append(label)
             else:
-                y_candidates = [shift(y, -2 * sr), 
-                                shift(y, -1 * sr), 
-                                shift(y, -0.5 * sr), 
+                y_candidates = [shift(y, -shift_amount[2]* sr), 
+                                shift(y, -shift_amount[1] * sr), 
+                                shift(y, -shift_amount[0] * sr), 
                                 y, 
-                                shift(y, 0.5 * sr),
-                                shift(y, 1 * sr),
-                                shift(y, 2 * sr),
+                                shift(y, shift_amount[0] * sr),
+                                shift(y, shift_amount[1] * sr),
+                                shift(y, shift_amount[2] * sr),
                                 ]
                 label_candidates = list(map(lambda x: generate_label(np.expand_dims(x, axis=0), MACHINE)[0], 
                                        y_candidates))
@@ -139,8 +135,8 @@ def eval_file_to_mixture_wav_label(filename):
                 target_idx = np.argmax(overlap_candidates)
                 label = label_candidates[target_idx]
                 mix_label = np.logical_or(mix_label, label)
-                labels.append(label)
                 y = y_candidates[target_idx]
+                
         ys = ys + y
         label, spec_label = generate_label(np.expand_dims(y, axis=0), MACHINE)
         active_label_sources[normal_type] = label

@@ -58,7 +58,7 @@ ae_path_base = '/hdd/hdd1/kjc/xumx/ae/cont'
 
 machine_types = [S1, S2]
 num_eval_normal = 250
-force_high_overlap = True
+force_high_overlap = False
 
 ########################################################################
 
@@ -141,7 +141,6 @@ def eval_file_to_mixture_wav_label(filename):
     
         if force_high_overlap:
             if mix_label == None:
-                print("FIRST:", normal_type)
                 label, spec_label = generate_label(y, MACHINE)
                 mix_label = label
                 active_label_sources[normal_type] = label
@@ -150,7 +149,6 @@ def eval_file_to_mixture_wav_label(filename):
                 ys = y
 
             else:
-                print("SECOND:", normal_type)
                 y_candidates = [shift(y, -shift_amount[2]* sr), 
                                 shift(y, -shift_amount[1] * sr), 
                                 shift(y, -shift_amount[0] * sr), 
@@ -362,6 +360,7 @@ def dataset_generator(target_dir,
     # 03 separate train & eval
     train_files = normal_files[num_eval_normal:]
     train_labels = normal_labels[num_eval_normal:]
+    
     eval_normal_files = sum([[fan_file.replace(S1, machine_type) for fan_file in normal_files[:num_eval_normal]] for machine_type in machine_types], []) # [id_00_normal, ..., id_02_normal, ...]
     eval_files = numpy.concatenate((eval_normal_files, abnormal_files), axis=0) # [id_00_normal, ..., id_02_normal, ..., id_00_abnormal, ..., id_02_abnormal, ...]
     eval_labels = numpy.concatenate((np.repeat(normal_labels[:num_eval_normal], len(machine_types)), abnormal_labels), axis=0)  
@@ -481,7 +480,7 @@ if __name__ == "__main__":
                     label = label.cuda()
                     pred = model[target_type](batch * label)                  
                                 
-                    loss = torch.mean(((pred - batch)*label)**2)  
+                    loss = torch.mean(((pred - batch* label)*label)**2)  
     
                     optimizer.zero_grad()
                     loss.backward()
@@ -497,6 +496,7 @@ if __name__ == "__main__":
         y_pred_mean = numpy.array([0. for k in eval_labels])
         y_pred_mask = numpy.array([0. for k in eval_labels])
         y_true = numpy.array(eval_labels)
+        
         sdr_pred_normal = {mt: [] for mt in machine_types}
         sdr_pred_abnormal = {mt: [] for mt in machine_types}
 
