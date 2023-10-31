@@ -276,7 +276,7 @@ class XUMXControlManager(XUMXManager):
                 mix_audio = mixture.clone()
                 mixture = mixture.repeat(n_src, 1, 1)
                 
-                white_noise = 0.0001* torch.randn(targets.shape)
+                white_noise = 0.0001* torch.randn(targets.shape).cuda()
                 targets = targets + white_noise
                 time_hat = time_hat + white_noise
                 

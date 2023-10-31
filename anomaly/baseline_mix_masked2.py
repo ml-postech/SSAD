@@ -32,7 +32,7 @@ __versions__ = "1.0.3"
 
 S1 = 'id_04'
 S2 = 'id_06'
-MACHINE = 'slider'
+MACHINE = 'valve'
 machine_types = [S1, S2]
 num_eval_normal = 250
 force_high_overlap = True
@@ -480,11 +480,15 @@ if __name__ == "__main__":
                 for batch, label in train_loader:
                     batch = batch.cuda()
                     label = label.cuda()
-                    pred = model[target_type](batch * label)  # batch: mixture nomasked             
-                                
-                    loss = torch.mean(((pred - (batch * label))*label)**2)  
-                
-    
+                    # pred = model[target_type](batch * label)  # batch: mixture nomasked                        
+                    # loss = torch.mean(((pred - (batch * label))*label)**2)
+                    
+                    
+                    ###########################################################
+                    pred = model[target_type](batch)  # batch: mixture nomasked                        
+                    loss = torch.mean((pred-batch)**2)
+                    ###########################################################
+            
                     optimizer.zero_grad()
                     loss.backward()
                     optimizer.step()

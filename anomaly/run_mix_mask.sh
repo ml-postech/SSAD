@@ -9,7 +9,7 @@ GPU=1
 
 export CUDA_VISIBLE_DEVICES=$GPU
 PYTHON="python"
-PYTHON_FILE="baseline_mix_masked.py"
+PYTHON_FILE="baseline_mix_masked2.py"
 
 for seed in ${SEEDS[@]}; do
    for MACHINE in ${MACHINES[@]}; do
@@ -18,7 +18,7 @@ for seed in ${SEEDS[@]}; do
          SRC2=${SOURCE2[IDX]}
          sed -i "s@^seed.*@seed: ${seed}@g" baseline.yaml
 
-         RESULT_DIR="/hdd/hdd1/kjc/ssad/result_231016_overlap_mix_masked"
+         RESULT_DIR="result/mixture_no_overlap"
          mkdir -p ${RESULT_DIR}
          sed -i "s@^result_directory.*@result_directory: ${RESULT_DIR}@g" baseline.yaml
 
