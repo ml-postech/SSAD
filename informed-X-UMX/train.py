@@ -275,9 +275,22 @@ class XUMXControlManager(XUMXManager):
                 mixture = mixture.permute(0, 2, 1)
                 mix_audio = mixture.clone()
                 mixture = mixture.repeat(n_src, 1, 1)
-
+                
+                white_noise = 0.0001* torch.randn(targets.shape)
+                targets = targets + white_noise
+                time_hat = time_hat + white_noise
+                
                 sdr_mix, _, _, _ = museval.evaluate(targets.detach().cpu(), mixture.detach().cpu())
                 sdr, _, _, _ = museval.evaluate(targets.detach().cpu(), time_hat.detach().cpu())
+                nan_mask = np.isnan(sdr.reshape(1, -1))
+                
+                if nan_mask.any():
+                    print("GOT NAN")
+                    print(targets)
+                    print(time_hat)
+                    print(sdr.reshape(1,-1))
+                
+                
 
                 sdr_tmp += np.mean(sdr, axis=1)
                 sdri_tmp += np.mean(sdr - sdr_mix, axis=1)

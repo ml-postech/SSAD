@@ -19,7 +19,7 @@ optim:
 data:
   train_dir: /hdd/hdd1/mimii
   split: 6dB
-  output: /hdd/hdd1/sss/xumx/overlap_valve_id0246_src2_3
+  output: /hdd/hdd1/sss/xumx/overlap_valve_id0246_src2_3 ########## TODO ############
   sample_rate: 16000
   num_workers: 4
   seed: 42
@@ -28,7 +28,7 @@ data:
   source_augmentations:
     - gain
     - delay
-  machine_type: valve
+  machine_type: valve ########## TODO ############
   sources:
     - id_00
     - id_02
@@ -40,9 +40,8 @@ data:
   source_random: True
   num_src_in_mix: 2
   impulse_label: False
-  train_ckpt: valve_train_control_overlap.pkl
-  val_ckpt: valve_val_control_overlap.pkl
-  impulse_label: False
+  train_ckpt: valve_train_control_overlap.pkl ########## TODO ############
+  val_ckpt: valve_val_control_overlap.pkl     ########## TODO ############
 # Network config
 model:
   pretrained: null

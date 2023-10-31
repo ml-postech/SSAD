@@ -125,17 +125,17 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         
         self.train_ckpt = train_ckpt
         self.val_ckpt = val_ckpt
-        self.index_lst = list(range(len(self.tracks) * self.samples_per_track))
+        self.index_lst = list(range(len(self.tracks)*self.samples_per_track) )
         self.mode = mode
         self.ckpt = self.train_ckpt if self.mode == 'train' else self.val_ckpt
             
         if self.ckpt and os.path.exists(self.ckpt):
             with open(self.ckpt, 'rb') as f:
                 self.data = pickle.load(f)
-                print("Checkpoint loaded successfully.")
+                print("\nCheckpoint loaded successfully.\n")
         else:
             self.data = {index: [] for index in range(len(self.tracks) * self.samples_per_track)}
-            print("Checkpoint file not found. Initializing with default data.")
+            print("Checkpoint file not found. Initializing with default data.\n")
             
         self.shift_amount = [0.1, 0.3, 0.5]
         self.overlap_ratio_lst = []
@@ -145,7 +145,7 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         if len(self.data[index]) == 0:
             
             self.index_lst.remove(index)
-    
+            
             audio_sources = {}
             active_label_sources = {}
             mix_label = None
@@ -198,12 +198,12 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
                 )
                 # convert to torch tensor
                 audio = torch.tensor(np_audio.T, dtype=torch.float)[:, :]
+                
                 # apply source-wise augmentations
                 audio = self.source_augmentations(audio)
-            
+                
                 #[channel, time]
                 
-               
                 label = self.generate_label(audio, impulse_label = self.impulse_label)
                 #[channel, time]
                 
@@ -386,3 +386,18 @@ class MIMIIValveDataset(torch.utils.data.Dataset):
         with open(path, 'wb') as f:
             pickle.dump(self.data, f)
             
+
+            
+    def shift(self, data, amount_to_right):
+        amount_to_right = int(amount_to_right)
+        white_noise = 0.001* torch.randn(data.shape)
+        if amount_to_right > 0:
+            new_data = np.concatenate([white_noise[:, :amount_to_right], data[:, :-amount_to_right]], axis = 1)
+        elif amount_to_right < 0:
+            new_data = np.concatenate([data[:, amount_to_right:], white_noise[:, :amount_to_right]], axis = 1)
+        else:
+            new_data = data
+        
+        return torch.tensor(new_data)
+    
+ 
