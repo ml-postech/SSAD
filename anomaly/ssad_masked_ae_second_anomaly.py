@@ -29,8 +29,6 @@ import museval
 
 from utils import *
 from model import TorchModel
-
-from baseline_src_xumx_original import *
 ########################################################################
 
 
@@ -43,24 +41,21 @@ __versions__ = "1.0.3"
 
 ########################################################################
 # choose machine type and id
-S1 = 'id_00'
-S2 = 'id_02'
+S1 = 'id_04'
+S2 = 'id_06'
 MACHINE = 'valve'
-FILE = 'valve_id00_id02_original.pth'
-# xumx_slider_model_path = '/hdd/hdd1/sss/xumx/1013_9_slider0246_fix_control/checkpoints/epoch=198-step=3382.ckpt'
-# xumx_valve_model_path = '/hdd/hdd1/sss/xumx/1013_8_valve0248_fix_control/checkpoints/epoch=214-step=4944.ckpt'
+FILE = 'slider_id04_id06_original.pth'
 
-xumx_slider_model_path = 'epoch=110-step=22310.ckpt'
-xumx_valve_model_path = 'epoch=104-step=24254.ckpt'
+xumx_slider_model_path = '/hdd/hdd1/sss/xumx/overlap_slider_id0246_src2_3/checkpoints/epoch=235-step=47435.ckpt'
+xumx_valve_model_path = '/hdd/hdd1/sss/xumx/overlap_valve_id0246_src2/checkpoints/epoch=309-step=71609.ckpt'
 
 xumx_model_path = xumx_valve_model_path if MACHINE == 'valve' else xumx_slider_model_path
 ae_path_base = '/hdd/hdd1/kjc/xumx/ae/cont'
 
 machine_types = [S1, S2]
-num_eval_normal = 250
-num_eval_abnormal = 116
+num_eval_normal = 88
+num_eval_abnormal = 88
 force_high_overlap = True
-
 ########################################################################
 
 
@@ -85,7 +80,7 @@ def train_file_to_mixture_wav_label(filename):
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
     ys = 0
     mix_label = None
-    
+   
     active_label_sources = {}
     active_spec_label_sources = {}
     
@@ -106,73 +101,30 @@ def train_file_to_mixture_wav_label(filename):
                                 shift(y, shift_amount[1] * sr),
                                 shift(y, shift_amount[2] * sr),
                                 ]
-                label_candidates = list(map(lambda x: generate_label(x, MACHINE)[0], y_candidates))
-                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
-                
+                label_candidates = list(map(lambda x: generate_label(x, MACHINE)[0], 
+                                       y_candidates))
+                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), 
+                                       label_candidates))
                 target_idx = np.argmax(overlap_candidates)
                 y = y_candidates[target_idx]
                 label, spec_label = generate_label(y, MACHINE)
-                mix_label = np.logical_or(mix_label, label)              
+                mix_label = np.logical_or(mix_label, label)
+                
         active_label_sources[machine] = label
         active_spec_label_sources[machine] = spec_label
         ys = ys + y
-    
+
     return sr, ys, active_label_sources, active_spec_label_sources
 
 
-def eval_file_to_mixture_wav_label(filename):
+def eval_file_to_mixture_wav_label(filename, num):
     shift_amount = [0.1, 0.3, 0.5]
     machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
+    current_state = os.path.split(os.path.split(filename)[0])[1]
     ys = 0
     gt_wav = {}
     mix_label = None
-    active_label_sources = {}
-    active_spec_label_sources = {}
-    
-    for normal_type in machine_types:
-        if normal_type == machine_type:
-            src_filename = filename
-        else:
-            src_filename = filename.replace(machine_type, normal_type).replace('abnormal', 'normal')
-            
-        sr, y = file_to_wav_stereo(src_filename)
-    
-        if force_high_overlap:
-            if mix_label == None:
-                label, spec_label = generate_label(y, MACHINE)
-                mix_label = label
-            else:
-                y_candidates = [shift(y, -shift_amount[2]* sr), 
-                                shift(y, -shift_amount[1] * sr), 
-                                shift(y, -shift_amount[0] * sr), 
-                                y, 
-                                shift(y, shift_amount[0] * sr),
-                                shift(y, shift_amount[1] * sr),
-                                shift(y, shift_amount[2] * sr),
-                                ]
-                label_candidates = list(map(lambda x: generate_label(x, MACHINE)[0], y_candidates))
-                overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
-                
-                target_idx = np.argmax(overlap_candidates)
-                y = y_candidates[target_idx]  # 2 번째 input의 overlap 높은 audio
-                label, spec_label = generate_label(y, MACHINE)
-                mix_label = np.logical_or(mix_label, label)
-               
-        active_label_sources[normal_type] = label
-        active_spec_label_sources[normal_type] = spec_label
-        gt_wav[normal_type] = y
-        ys = ys + y
-    
-    return sr, ys, gt_wav, active_label_sources, active_spec_label_sources
-
-
-
-def eval_file_to_mixture_wav_label_second_anomaly(filename, num):
-    shift_amount = [0.1, 0.3, 0.5]
-    machine_type = os.path.split(os.path.split(os.path.split(filename)[0])[0])[1]
-    ys = 0
-    gt_wav = {}
-    mix_label = None
+    labels = []
     active_label_sources = {}
     active_spec_label_sources = {}
     
@@ -180,23 +132,27 @@ def eval_file_to_mixture_wav_label_second_anomaly(filename, num):
     hn = int(0.5*num_eval_normal)
     ha = int(0.5*num_eval_abnormal)
     
-    ad_source_lst = [num for num in range(1*hn, 2*hn+1)] + [num for num in range(3*hn, 4*hn+1)] + [num for num in range(4*hn + ha, 4*hn + 2*ha + 1)] + [num for num in range(4*hn + 3*ha, 4*hn + 4*ha + 1)]
+    ad_source_lst = [num for num in range(0*hn, 1*hn+1)] + [num for num in range(2*hn, 3*hn+1)] + [num for num in range(4*hn + 0*ha, 4*hn + 1*ha + 1)] + [num for num in range(4*hn + 2*ha, 4*hn + 3*ha + 1)]
+
     
-    for normal_type in machine_types:
-        if normal_type == machine_type:
+    for mt in machine_types:
+        if mt == machine_type:
             src_filename = filename
         else:
             if num in ad_source_lst:
-                src_filename = filename.replace(machine_type, normal_type).replace('normal', 'abnormal')    
+                if current_state == 'abnormal':
+                    src_filename = filename.replace(machine_type, mt)
+                else:
+                    src_filename = filename.replace(machine_type, mt).replace('normal', 'abnormal')
             else:
-                src_filename = filename.replace(machine_type, normal_type).replace('abnormal', 'normal')
-            
+                src_filename = filename.replace(machine_type, mt).replace('abnormal', 'normal')
+
         sr, y = file_to_wav_stereo(src_filename)
-    
+        label, spec_label = generate_label(y, MACHINE)
         if force_high_overlap:
             if mix_label == None:
-                label, spec_label = generate_label(y, MACHINE)
                 mix_label = label
+                labels.append(label)
             else:
                 y_candidates = [shift(y, -shift_amount[2]* sr), 
                                 shift(y, -shift_amount[1] * sr), 
@@ -210,18 +166,17 @@ def eval_file_to_mixture_wav_label_second_anomaly(filename, num):
                 overlap_candidates = list(map(lambda x: np.logical_and(x, mix_label).sum() / np.logical_or(x, mix_label).sum(), label_candidates))
                 
                 target_idx = np.argmax(overlap_candidates)
-                y = y_candidates[target_idx]  # 2 번째 input의 overlap 높은 audio
+                y = y_candidates[target_idx]
                 label, spec_label = generate_label(y, MACHINE)
                 mix_label = np.logical_or(mix_label, label)
-               
-        active_label_sources[normal_type] = label
-        active_spec_label_sources[normal_type] = spec_label
-        gt_wav[normal_type] = y
+                labels.append(label)
+                
         ys = ys + y
+        active_label_sources[mt] = label
+        active_spec_label_sources[mt] = spec_label
+        gt_wav[mt] = y
     
     return sr, ys, gt_wav, active_label_sources, active_spec_label_sources
-
-
 
 
 class XUMXSystem(torch.nn.Module):
@@ -259,7 +214,7 @@ def xumx_model(path):
 
 
 
-def train_list_to_mix_sep_masked_spec_vector_array(file_list,
+def train_list_to_mix_sep_spec_vector_array(file_list,
                          msg="calc...",
                          n_mels=64,
                          frames=5,
@@ -282,14 +237,13 @@ def train_list_to_mix_sep_masked_spec_vector_array(file_list,
     """
     # 01 calculate the number of dimensions
     dims = n_mels * frames
-    
+
     # 02 loop of file_to_vectorarray
     for idx in tqdm(range(len(file_list)), desc=msg):
         target_type = os.path.split(os.path.split(os.path.split(file_list[idx])[0])[0])[1]
-        
+
         sr, mixture_y, active_label_sources, active_spec_label_sources = train_file_to_mixture_wav_label(file_list[idx])
-        active_spec_label = active_spec_label_sources[target_source][:1, :, :].cuda().unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0)  # [309, 320]
-           
+            
         active_labels = torch.stack([active_label_sources[src] for src in machine_types])
         _, time = sep_model(torch.Tensor(mixture_y).unsqueeze(0).cuda(), active_labels.unsqueeze(0).cuda())
         # [src, b, ch, time]
@@ -299,21 +253,21 @@ def train_list_to_mix_sep_masked_spec_vector_array(file_list,
             target_idx = machine_types.index(target_type)
         ys = time[target_idx, 0, 0, :].detach().cpu().numpy()
         spec_label = active_spec_label_sources[machine_types[target_idx]][:1, :, :] \
-            .unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy()
+            .unsqueeze(3).repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0).numpy() # [309, 320]
         
         vector_array = wav_to_spec_vector_array(sr, ys,
                                             n_mels=n_mels,
                                             frames=frames,
                                             n_fft=n_fft,
                                             hop_length=hop_length,
-                                            power=power,
-                                            spec_mask=spec_label)
+                                            power=power)
 
         if idx == 0:
             dataset = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
             label = numpy.zeros((vector_array.shape[0] * len(file_list), dims), float)
         dataset[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = vector_array
-        label[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = active_spec_label.cpu()
+        label[vector_array.shape[0] * idx: vector_array.shape[0] * (idx + 1), :] = spec_label
+
     return dataset, label
 
 
@@ -328,7 +282,7 @@ class AEDataset(torch.utils.data.Dataset):
         self.file_list = file_list
         self.target_source = target_source
 
-        self.data_vector, self.label = train_list_to_mix_sep_masked_spec_vector_array(self.file_list,
+        self.data_vector, self.label = train_list_to_mix_sep_spec_vector_array(self.file_list,
                                             msg="generate train_dataset",
                                             n_mels=param["feature"]["n_mels"],
                                             frames=param["feature"]["frames"],
@@ -381,12 +335,11 @@ def dataset_generator_second_anomaly(target_dir,
     normal_files = sorted(glob.glob(
         os.path.abspath("{dir}/{normal_dir_name}/*.{ext}".format(dir=target_dir,
                                                                  normal_dir_name=normal_dir_name,
-                                                                ext=ext))))  # 첫 번째 source의 normal 파일
-    
+                                                                ext=ext))))
     normal_len = [len(glob.glob(
         os.path.abspath("{dir}/{normal_dir_name}/*.{ext}".format(dir=target_dir.replace(S1, mt),
                                                                  normal_dir_name=normal_dir_name,
-                                                                 ext=ext)))) for mt in machine_types]   #dataset 중에서 가장 짧은 것 기준
+                                                                 ext=ext)))) for mt in machine_types]   
     normal_len = min(min(normal_len), len(normal_files))
     normal_files = normal_files[:normal_len]
 
@@ -394,9 +347,9 @@ def dataset_generator_second_anomaly(target_dir,
     normal_labels = numpy.zeros(len(normal_files))
     if len(normal_files) == 0:
         logger.exception("no_wav_data!!")
-
-
-    # 02 abnormal list generate
+  
+    
+     # 02 abnormal list generate
     abnormal_files = sorted(glob.glob(
         os.path.abspath("{dir}/{abnormal_dir_name}/*.{ext}".format(dir=target_dir,
                                                                  abnormal_dir_name=abnormal_dir_name,
@@ -414,87 +367,13 @@ def dataset_generator_second_anomaly(target_dir,
     abnormal_files = sum([[fan_file.replace(S1, machine_type) for fan_file in abnormal_files[:num_eval_abnormal]] for machine_type in machine_types], []) # [id_00_abnormal, ..., id_02_abnormal, ...]
     eval_files = numpy.concatenate((eval_normal_files, abnormal_files), axis=0) # [id_00_normal, ..., id_02_normal, ..., id_00_abnormal, ..., id_02_abnormal, ...]
     eval_labels = numpy.concatenate((np.repeat(normal_labels[:num_eval_normal], len(machine_types)), np.repeat(abnormal_labels[:num_eval_abnormal], len(machine_types))), axis=0)  
+
     logger.info("train_file num : {num}".format(num=len(train_files)))
     logger.info("eval_file  num : {num}".format(num=len(eval_files)))
 
     return train_files, train_labels, eval_files, eval_labels
 
 
-
-
-def dataset_generator(target_dir,
-                      normal_dir_name="normal",
-                      abnormal_dir_name="abnormal",
-                      ext="wav"):
-    """
-    target_dir : str
-        base directory path of the dataset
-    normal_dir_name : str (default="normal")
-        directory name the normal data located in
-    abnormal_dir_name : str (default="abnormal")
-        directory name the abnormal data located in
-    ext : str (default="wav")
-        filename extension of audio files 
-    return : 
-        train_data : numpy.array( numpy.array( float ) )
-            training dataset
-            * dataset.shape = (total_dataset_size, feature_vector_length)
-        train_files : list [ str ]
-            file list for training
-        train_labels : list [ boolean ] 
-            label info. list for training
-            * normal/abnormal = 0/1
-        eval_files : list [ str ]
-            file list for evaluation
-        eval_labels : list [ boolean ] 
-            label info. list for evaluation
-            * normal/abnormal = 0/1
-    """
-
-    logger.info("target_dir : {}".format(target_dir))
-
-    # 01 normal list generate
-    normal_files = sorted(glob.glob(
-        os.path.abspath("{dir}/{normal_dir_name}/*.{ext}".format(dir=target_dir,
-                                                                 normal_dir_name=normal_dir_name,
-                                                                ext=ext))))  # 첫 번째 source의 normal 파일
-    
-    normal_len = [len(glob.glob(
-        os.path.abspath("{dir}/{normal_dir_name}/*.{ext}".format(dir=target_dir.replace(S1, mt),
-                                                                 normal_dir_name=normal_dir_name,
-                                                                 ext=ext)))) for mt in machine_types]   #dataset 중에서 가장 짧은 것 기준
-    normal_len = min(min(normal_len), len(normal_files))
-    normal_files = normal_files[:normal_len]
-
-
-    normal_labels = numpy.zeros(len(normal_files))
-    if len(normal_files) == 0:
-        logger.exception("no_wav_data!!")
-
-
-    # 02 abnormal list generate
-    abnormal_files = []
-    for mt in machine_types:
-        abnormal_files.extend(sorted(glob.glob(
-            os.path.abspath("{dir}/{abnormal_dir_name}/*.{ext}".format(dir=target_dir.replace(S1, mt),
-                                                                   abnormal_dir_name=abnormal_dir_name,
-                                                                 ext=ext)))))                                               
-    abnormal_labels = numpy.ones(len(abnormal_files))
-    if len(abnormal_files) == 0:
-        logger.exception("no_wav_data!!")
-
-    # 03 separate train & eval
-    train_files = normal_files[num_eval_normal:]
-    train_labels = normal_labels[num_eval_normal:]
-   
-    eval_normal_files = sum([[fan_file.replace(S1, machine_type) for fan_file in normal_files[:num_eval_normal]] for machine_type in machine_types], []) # [id_00_normal, id_00_normal, id_02_normal, id_02_normal, ...]
-    
-    eval_files = numpy.concatenate((eval_normal_files, abnormal_files), axis=0) # [id_00_normal, ..., id_02_normal, ..., id_00_abnormal, ..., id_02_abnormal, ...]
-    eval_labels = numpy.concatenate((np.repeat(normal_labels[:num_eval_normal], 2*len(machine_types)), abnormal_labels), axis=0)  
-    logger.info("train_file num : {num}".format(num=len(train_files)))
-    logger.info("eval_file  num : {num}".format(num=len(eval_files)))
-
-    return train_files, train_labels, eval_files, eval_labels
 ########################################################################
 
 
@@ -533,7 +412,6 @@ if __name__ == "__main__":
         db = os.path.split(os.path.split(os.path.split(target_dir)[0])[0])[1]
         machine_type = 'mix'
         machine_id = os.path.split(target_dir)[1] 
-        # target_dir = target_dir.replace('fan', '*')
 
         # setup path
         evaluation_result = {}
@@ -577,7 +455,7 @@ if __name__ == "__main__":
         #     eval_files = load_pickle(eval_files_pickle)
         #     eval_labels = load_pickle(eval_labels_pickle)
         # else:
-        train_files, train_labels, eval_files, eval_labels = dataset_generator(target_dir)
+        train_files, train_labels, eval_files, eval_labels = dataset_generator_second_anomaly(target_dir)
         save_pickle(train_pickle, (train_files, train_labels))
         save_pickle(eval_files_pickle, eval_files)
         save_pickle(eval_labels_pickle, eval_labels)
@@ -603,9 +481,9 @@ if __name__ == "__main__":
                 for batch, label in train_loader:
                     batch = batch.cuda()
                     label = label.cuda()
-                    pred = model[target_type](batch * label)                  
-                                
-                    loss = torch.mean(((pred - batch* label)*label)**2)  
+                    pred = model[target_type](batch*label)                  
+                    
+                    loss = torch.mean(((pred - (batch * label))*label)**2)  
     
                     optimizer.zero_grad()
                     loss.backward()
@@ -621,7 +499,6 @@ if __name__ == "__main__":
         y_pred_mean = numpy.array([0. for k in eval_labels])
         y_pred_mask = numpy.array([0. for k in eval_labels])
         y_true = numpy.array(eval_labels)
-        
         sdr_pred_normal = {mt: [] for mt in machine_types}
         sdr_pred_abnormal = {mt: [] for mt in machine_types}
 
@@ -632,13 +509,20 @@ if __name__ == "__main__":
             machine_type = os.path.split(os.path.split(os.path.split(file_name)[0])[0])[1]
             target_idx = machine_types.index(machine_type)  
             
-            sr, mixture_y, y_raw, active_label_sources, active_spec_label_sources = eval_file_to_mixture_wav_label_anomaly(file_name)
+            sr, mixture_y, y_raw, active_label_sources, active_spec_label_sources = eval_file_to_mixture_wav_label(file_name, num)
             overlap_ratios.append(get_overlap_ratio(active_label_sources[machine_types[0]], active_label_sources[machine_types[1]]))
             
             active_labels = torch.stack([active_label_sources[src] for src in machine_types])
             _, time = sep_model(torch.Tensor(mixture_y).unsqueeze(0).cuda(), active_labels.unsqueeze(0).cuda())
             # [src, b, ch, time]
             ys = time[target_idx, 0, 0, :].detach().cpu().numpy()
+            
+            data = wav_to_spec_vector_array(sr, ys,
+                                        n_mels=param["feature"]["n_mels"],
+                                        frames=param["feature"]["frames"],
+                                        n_fft=param["feature"]["n_fft"],
+                                        hop_length=param["feature"]["hop_length"],
+                                        power=param["feature"]["power"])
             
             n_mels = param["feature"]["n_mels"]
             frames = param["feature"]["frames"]
@@ -647,21 +531,20 @@ if __name__ == "__main__":
                 .repeat(1, 1, 1, n_mels).reshape(1, 309, frames * n_mels).squeeze(0)
             active_ratio = torch.sum(active_spec_label) / torch.sum(torch.ones_like(active_spec_label))
 
-            data = wav_to_spec_vector_array(sr, ys,
-                                        n_mels=param["feature"]["n_mels"],
-                                        frames=param["feature"]["frames"],
-                                        n_fft=param["feature"]["n_fft"],
-                                        hop_length=param["feature"]["hop_length"],
-                                        power=param["feature"]["power"],
-                                        spec_mask=active_spec_label.cpu().numpy())
-            
-
             data = torch.Tensor(data).cuda()
             error = torch.mean(((data - model[machine_type](data)) ** 2), dim=1)
-            error_mask = torch.mean(((data * active_spec_label - model[machine_type](data * active_spec_label)) * active_spec_label) ** 2, dim=1)
+            error_mask = torch.mean(((data* active_spec_label - model[machine_type](data * active_spec_label)) * active_spec_label) ** 2, dim=1)
 
-            sep_sdr, _, _, _ = museval.evaluate(numpy.expand_dims(y_raw[machine_type][0, :ys.shape[0]], axis=(0,2)), 
-                                        numpy.expand_dims(ys, axis=(0,2)))
+            targets = numpy.expand_dims(y_raw[machine_type][0, :ys.shape[0]], axis=(0,2))
+            time_hat = numpy.expand_dims(ys, axis=(0,2))         
+            time_hat_size = ys.shape[0]
+        
+            white_noise_np = 0.0001 * np.random.randn(1, time_hat_size, 1)
+
+            targets = np.concatenate((targets, white_noise_np), axis=2)
+            time_hat = np.concatenate((time_hat, white_noise_np), axis=2)
+            
+            sep_sdr, _, _, _ = museval.evaluate(targets, time_hat)
 
             y_pred_mean[num] = torch.mean(error).detach().cpu().numpy()
             y_pred_mask[num] = (torch.mean(error_mask) / active_ratio).detach().cpu().numpy()

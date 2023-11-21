@@ -17,9 +17,9 @@ optim:
   weight_decay: 0.00001
 # Data config
 data:
-  train_dir: /dev/shm/mimii
+  train_dir: /hdd/hdd1/mimii
   split: 6dB
-  output: /hdd/hdd1/sss/xumx/0908_base_1
+  output: /hdd/hdd1/sss/xumx/overlap_slider_id0246_src2_base_1 ########## TODO ############
   sample_rate: 16000
   num_workers: 4
   seed: 42
@@ -28,7 +28,7 @@ data:
   source_augmentations:
     - gain
     - delay
-  machine_type: valve
+  machine_type: slider ########## TODO ############
   sources:
     - id_00
     - id_02
@@ -39,6 +39,9 @@ data:
   task_random: True
   source_random: False
   num_src_in_mix: 2
+  impulse_label: False
+  train_ckpt: slider_train_control_overlap.pkl ########## TODO ############
+  val_ckpt: slider_val_control_overlap.pkl     ########## TODO ############
 # Network config
 model:
   pretrained: null

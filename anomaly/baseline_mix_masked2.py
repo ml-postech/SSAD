@@ -30,8 +30,8 @@ from model import TorchModel
 __versions__ = "1.0.3"
 ########################################################################
 
-S1 = 'id_04'
-S2 = 'id_06'
+S1 = 'id_00'
+S2 = 'id_02'
 MACHINE = 'valve'
 machine_types = [S1, S2]
 num_eval_normal = 250
@@ -480,14 +480,14 @@ if __name__ == "__main__":
                 for batch, label in train_loader:
                     batch = batch.cuda()
                     label = label.cuda()
-                    # pred = model[target_type](batch * label)  # batch: mixture nomasked                        
-                    # loss = torch.mean(((pred - (batch * label))*label)**2)
+                    pred = model[target_type](batch * label)  # batch: mixture nomasked                        
+                    loss = torch.mean(((pred - (batch * label))*label)**2)
                     
                     
-                    ###########################################################
-                    pred = model[target_type](batch)  # batch: mixture nomasked                        
-                    loss = torch.mean((pred-batch)**2)
-                    ###########################################################
+                    # ###########################################################
+                    # pred = model[target_type](batch)  # batch: mixture nomasked                        
+                    # loss = torch.mean((pred-batch)**2)
+                    # ###########################################################
             
                     optimizer.zero_grad()
                     loss.backward()
@@ -541,6 +541,22 @@ if __name__ == "__main__":
         mean_scores = []
         mask_scores = []
         anomaly_detect_score = {}
+        
+        y_pred_mask_normal = []
+        y_pred_mask_abnormal = []
+        
+        for num in eval_types['id_00']:
+            if num > 2*num_eval_normal:
+                y_pred_mask_abnormal.append(y_pred_mask[num])
+            else:
+                y_pred_mask_normal.append(y_pred_mask[num])
+        
+        with open ('mixture_normal.pickle', 'wb') as f1:
+            pickle.dump(y_pred_mask_normal, f1 )
+            
+        with open ('mixture_abnormal.pickle', 'wb') as f2:
+            pickle.dump(y_pred_mask_abnormal, f2 )    
+        
 
         for machine_type in machine_types:
             mean_score = metrics.roc_auc_score(y_true[eval_types[machine_type]], y_pred_mean[eval_types[machine_type]])

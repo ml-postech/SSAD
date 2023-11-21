@@ -458,6 +458,13 @@ if __name__ == "__main__":
             #         eval_types[mt].append(num)
             # else:
             #     eval_types[machine_type].append(num)
+            
+        y_pred_mask_normal = y_pred_mask[:2*num_eval_normal]
+        y_pred_mask_abnormal = y_pred_mask[2*num_eval_normal:]
+        
+        np.savetxt('mixture_normal.txt', y_pred_mask_normal, fmt='%1.3f',  delimiter=',')
+        np.savetxt('mixture_abnormal.txt', y_pred_mask_abnormal, fmt='%1.3f',  delimiter=' ',)
+            
 
         mean_scores = []
         mask_scores = []

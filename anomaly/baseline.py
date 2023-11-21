@@ -43,8 +43,9 @@ __versions__ = "1.0.3"
 
 
 MACHINE = 'valve'
-num_eval_normal = 250
 
+num_eval_normal = 88
+num_eval_abnormal = 88
 
 ########################################################################
 # feature extractor
